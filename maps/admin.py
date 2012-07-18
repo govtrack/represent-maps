@@ -12,6 +12,7 @@ class MapLayerBoundaryAdmin(admin.ModelAdmin):
     list_display = ('name', 'maplayer')
     list_display_links = ('name', 'maplayer')
     list_filter = ('maplayer',)
+    raw_id_fields = ('boundary',)
     
     def name(self, obj): return unicode(obj)
 
