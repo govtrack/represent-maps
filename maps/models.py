@@ -20,7 +20,7 @@ class MapLayer(models.Model):
     
     slug = models.SlugField(max_length=200)
 
-    name = models.CharField(max_length=100, unique=True,
+    name = models.CharField(max_length=100,
         help_text='A description of the map layer.')
     authority = models.CharField(max_length=256,
         help_text='If the coloring represents measurements or other actual data, this field stores the entity responsible for the coloring data\'s accuracy, e.g. "City of Chicago".')

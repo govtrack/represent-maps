@@ -59,7 +59,7 @@
 			  	  // the tileSize is set to 512 below, the size is passed to the server, and since the
 			  	  // size is double what Google will be using for its own tiles, we pass a one-lower zoom
 			  	  // level to our tile server.
-				  return "/map/tiles/{{layer.slug|escapejs}}{% if boundary %}/{{boundary.slug|escapejs}}{% endif %}/" + (zoom-1) + "/" + coord.x + "/" + coord.y + ".png?size=512";	
+				  return "/map/tiles/{{layer.slug|escapejs}}{% if boundary %}/{{boundary.slug|escapejs}}{% endif %}/" + (zoom-1) + "/" + coord.x + "/" + coord.y + ".png?size=512&generation={{request.GET.gen|urlencode}}";
 			  },
 			  tileSize: new google.maps.Size(512, 512),
 			  isPng: true,
