@@ -4,7 +4,7 @@ function map_hit_test(coord, layer, boundary, callback, api_root) {
 	if (hittest_data_loading) return;
 	hittest_data_loading = true;
 	
-	var data_key = coord.zoom + "/" + coord.tile_x + "/" + coord.tile_y;
+	var data_key = layer + "/" + (boundary ? boundary : "") + "/" + coord.zoom + "/" + coord.tile_x + "/" + coord.tile_y;
 	for (var i = 0; i < hittest_data.length; i++) {
 		if (hittest_data[i].key == data_key) {
 			map_hit_test_2(coord, hittest_data[i].value, callback)
