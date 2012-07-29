@@ -67,7 +67,7 @@ def map_tile(request, layer_slug, boundary_slug, tile_zoom, tile_x, tile_y, form
     
     # Load basic parameters.
     try:
-        size = int(request.GET.get('size', '256' if format != 'json' else '64'))
+        size = int(request.GET.get('size', '256' if format not in ('json', 'jsonp') else '64'))
         if size not in (64, 128, 256, 512, 1024): raise ValueError()
         
         srs = int(request.GET.get('srs', '3857'))
@@ -156,12 +156,15 @@ def map_tile(request, layer_slug, boundary_slug, tile_zoom, tile_x, tile_y, form
         elif format == "json":
             # Send an empty "UTF-8 Grid"-like response.
             return HttpResponse('{"error":"nothing-here"}', content_type="application/json")
+        elif format == "jsonp":
+            # Send an empty "UTF-8 Grid"-like response.
+            return HttpResponse(request.GET.get("callback", "callback") +  '({"error":"nothing-here"})', content_type="text/javascript")
     
     # Query for layer style information and then set it on the boundary objects.
     
     styles = layer.boundaries.filter(boundary__in=boundary_id_map.keys())
     for style in styles:
-    	boundary_id_map[style.boundary_id]["style"] = style
+        boundary_id_map[style.boundary_id]["style"] = style
     
     # Create the image buffer.
     if format == 'png':
@@ -169,13 +172,16 @@ def map_tile(request, layer_slug, boundary_slug, tile_zoom, tile_x, tile_y, form
     elif format == 'svg':
         buf = StringIO()
         im = cairo.SVGSurface(buf, size, size)
-    elif format == 'json':
+    elif format in ('json', 'jsonp'):
         im = cairo.ImageSurface(cairo.FORMAT_RGB24, size, size)
         
+    # Create the drawing surface.
     ctx = cairo.Context(im)
     ctx.select_font_face(maps_settings.MAP_LABEL_FONT, cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
     
-    if format == 'json':
+    if format in ('json', 'jsonp'):
+        # For the UTF-8 Grid response, turn off anti-aliasing since the color we draw to each pixel
+        # is a code for what is there.
         ctx.set_antialias(cairo.ANTIALIAS_NONE)
     
     def max_extent(shape):
@@ -185,8 +191,8 @@ def map_tile(request, layer_slug, boundary_slug, tile_zoom, tile_x, tile_y, form
     # Transform the boundaries to output coordinates.
     draw_shapes = []
     for bdry in boundaries:
-    	if not "style" in bdry: continue # Boundary had no corresponding MapLayerBoundary
-    	
+        if not "style" in bdry: continue # Boundary had no corresponding MapLayerBoundary
+        
         shape = bdry[shape_field]
         
         # Simplify to the detail that could be visible in the output. Although
@@ -214,12 +220,12 @@ def map_tile(request, layer_slug, boundary_slug, tile_zoom, tile_x, tile_y, form
         
     # Draw shading, for each linear ring of each polygon in the multipolygon.
     for i, bdry, shape, ext_dim in draw_shapes:
-        if not bdry["style"].color and format != 'json': continue
+        if not bdry["style"].color and format not in ('json', 'jsonp'): continue
         for polygon in shape:
             for ring in polygon: # should just be one since no shape should have holes?
                 color = bdry["style"].color
                 
-                if format == 'json':
+                if format in ('json', 'jsonp'):
                     # We're returning a "UTF-8 Grid" indicating which feature is at
                     # each pixel location on the grid. In order to compute the grid,
                     # we draw to an image surface with a distinct color for each feature.
@@ -259,7 +265,7 @@ def map_tile(request, layer_slug, boundary_slug, tile_zoom, tile_x, tile_y, form
                 
     # Draw outlines, for each linear ring of each polygon in the multipolygon.
     for i, bdry, shape, ext_dim in draw_shapes:
-        if format == 'json': continue
+        if format in ('json', 'jsonp'): continue
         if ext_dim < pixel_width * 3: continue # skip outlines if too small
         for polygon in shape:
             for ring in polygon: # should just be one since no shape should have holes?
@@ -275,7 +281,7 @@ def map_tile(request, layer_slug, boundary_slug, tile_zoom, tile_x, tile_y, form
                 
     # Draw labels.
     for i, bdry, shape, ext_dim in draw_shapes:
-        if format == 'json': continue
+        if format in ('json', 'jsonp'): continue
         if ext_dim < pixel_width * 20: continue
         
         # Get the location of the label stored in the database, or fall back to
@@ -290,9 +296,9 @@ def map_tile(request, layer_slug, boundary_slug, tile_zoom, tile_x, tile_y, form
             pt = Point(tuple(bdry["label_point"]), srid=db_srs.srid)
             pt.transform(out_srs)
         else:
-        	# No label_point is specified so try to find one by using the
-        	# point_on_surface to find a point that is in the shape and
-        	# in the viewport's bounding box.
+            # No label_point is specified so try to find one by using the
+            # point_on_surface to find a point that is in the shape and
+            # in the viewport's bounding box.
             try:
                 pt = bbox.intersection(shape).point_on_surface
             except:
@@ -365,7 +371,7 @@ def map_tile(request, layer_slug, boundary_slug, tile_zoom, tile_x, tile_y, form
         r = HttpResponse(v, content_type='image/svg+xml')
         r["Content-Length"] = len(v)
     
-    elif format == "json":
+    elif format in ('json', 'jsonp'):
         # Get the bytes, which are RGBA sequences.
         buf1 = list(im.get_data())
         
@@ -389,7 +395,9 @@ def map_tile(request, layer_slug, boundary_slug, tile_zoom, tile_x, tile_y, form
             shapecode1[k] = b
             shapecode2[b] = draw_shapes[k-1]
             
-        buf = '{"grid":['
+        buf = ''
+        if format == 'jsonp': buf += request.GET.get("callback", "callback") + "(\n"
+        buf += '{"grid":['
         for row in xrange(size):
             if row > 0: buf += ",\n         "
             buf += json.dumps(u"".join(unichr(shapecode1[k] if k != 0 else 32) for k in shapeidx[row*size:(row+1)*size]))
@@ -401,7 +409,12 @@ def map_tile(request, layer_slug, boundary_slug, tile_zoom, tile_x, tile_y, form
                     })
                     for k in sorted(shapecode2)), separators=(',', ':'))
         buf += "}"
-        r = HttpResponse(buf, content_type='application/json')
+        if format == 'jsonp': buf += ")"
+        
+        if format == "json":
+            r = HttpResponse(buf, content_type='application/json')
+        else:
+            r = HttpResponse(buf, content_type='text/javascript')
     
     return r
 

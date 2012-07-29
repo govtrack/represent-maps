@@ -1,6 +1,6 @@
 var hittest_data = [];
 var hittest_data_loading = false;
-function map_hit_test(coord, layer, boundary, callback) {
+function map_hit_test(coord, layer, boundary, callback, api_root) {
 	if (hittest_data_loading) return;
 	hittest_data_loading = true;
 	
@@ -16,10 +16,12 @@ function map_hit_test(coord, layer, boundary, callback) {
 	// pop the oldest tile
 	if (hittest_data.length > 32) hittest_data.shift();
 	
+	var format = (!api_root ? 'json' : 'jsonp');
 	$.ajax(
-		"/map/tiles/" + layer + (boundary ? "/" + boundary : "") + "/" + coord.zoom + "/" + coord.tile_x + "/" + coord.tile_y + ".json",
+		api_root + "/map/tiles/" + layer + (boundary ? "/" + boundary : "") + "/" + coord.zoom + "/" + coord.tile_x + "/" + coord.tile_y + "." + format,
 		{
-			dataType: 'json',
+			dataType: format,
+			cache: true,
 			success: function(data) {
 				hittest_data.push({ key: data_key, value: data });
 				map_hit_test_2(coord, data , callback);
@@ -39,8 +41,8 @@ function map_hit_test_2(coord, grid_data, callback) {
 	var x = Math.floor(coord.offset_x / 256 * grid_size);
 	var y = Math.floor(coord.offset_y / 256 * grid_size);
 	var b = grid_data.grid[y].charCodeAt(x);
-	if (b > 93) b--;
-	if (b > 35) b--;
+	if (b >= 93) b--;
+	if (b >= 35) b--;
 	b -= 32;
 	var key = grid_data.keys[b];
 	callback(key, grid_data.data ? grid_data.data[key] : null);
