@@ -8,6 +8,7 @@ from jsonfield import JSONField
 
 class MyAppConf(AppConf):
     MAP_LABEL_FONT = "Ubuntu"
+    MAP_TILE_CACHE_SECONDS = 60*60*24*1 # one day
 
 app_settings = MyAppConf()
 

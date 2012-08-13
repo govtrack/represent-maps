@@ -59,7 +59,7 @@ def get_srs(srs):
     return db_srs, out_srs
         
         
-@cache_control(public=True, max_age=60*60*24*3) # ask to be cached for 3 days
+@cache_control(public=True, max_age=maps_settings.MAP_TILE_CACHE_SECONDS)
 def map_tile(request, layer_slug, boundary_slug, tile_zoom, tile_x, tile_y, format):
     if not has_imaging_library: raise Http404("Cairo is not available.")
     
