@@ -12,7 +12,7 @@ from django.template import RequestContext
 from django.views.decorators.cache import cache_control
 import math, json
 try:
-    import cairo 
+    import cairo, PIL.Image
     from StringIO import StringIO
     has_imaging_library = True
 except ImportError:
@@ -142,15 +142,16 @@ def map_tile(request, layer_slug, boundary_slug, tile_zoom, tile_x, tile_y, form
     if len(boundaries) == 0:
         if format == "svg":
             raise Http404("No boundaries here.")
-        elif format == "png":
-            # Send a 1x1 transparent PNG. Google is OK getting 404s for map tile images
-            # but OpenLayers isn't.
+        elif format in ("png", "gif"):
+            # Send a 1x1 transparent image. Google is OK getting 404s for map tile images
+            # but OpenLayers isn't. Maybe cache the image?
             im = cairo.ImageSurface(cairo.FORMAT_ARGB32, 1, 1)
             ctx = cairo.Context(im)
             buf = StringIO()
             im.write_to_png(buf)
             v = buf.getvalue()
-            r = HttpResponse(v, content_type='image/png')
+            if format == "gif": v = convert_png_to_gif(v)
+            r = HttpResponse(v, content_type='image/' + format)
             r["Content-Length"] = len(v)
             return r
         elif format == "json":
@@ -167,12 +168,15 @@ def map_tile(request, layer_slug, boundary_slug, tile_zoom, tile_x, tile_y, form
         boundary_id_map[style.boundary_id]["style"] = style
     
     # Create the image buffer.
-    if format == 'png':
+    if format in ('png', 'gif'):
         im = cairo.ImageSurface(cairo.FORMAT_ARGB32, size, size)
     elif format == 'svg':
         buf = StringIO()
         im = cairo.SVGSurface(buf, size, size)
     elif format in ('json', 'jsonp'):
+        # This is going to be a "UTF-8 Grid"-like response, but we generate that
+        # info by first creating an actual image, with colors coded by index to
+        # represent which boundary covers which pixels.
         im = cairo.ImageSurface(cairo.FORMAT_RGB24, size, size)
         
     # Create the drawing surface.
@@ -198,7 +202,10 @@ def map_tile(request, layer_slug, boundary_slug, tile_zoom, tile_x, tile_y, form
         # Simplify to the detail that could be visible in the output. Although
         # simplification may be a little expensive, drawing a more complex
         # polygon is even worse.
-        shape = shape.simplify(pixel_width, preserve_topology=True)
+        try:
+            shape = shape.simplify(pixel_width, preserve_topology=True)
+        except: # GEOSException
+            pass # try drawing original
         
         # Make sure the results are all MultiPolygons for consistency.
         if shape.__class__.__name__ == 'Polygon':
@@ -231,8 +238,10 @@ def map_tile(request, layer_slug, boundary_slug, tile_zoom, tile_x, tile_y, form
                 	# Colors are specified as tuples/lists with 3 (RGB) or 4 (RGBA)
                 	# components. Components that are float values must be in the
                 	# range 0-1, while all other values are in the range 0-255.
+                	# Because .gif does not support partial transparency, alpha values
+                	# are forced to 1.
                 	return (get_rgba_component(clr[0]), get_rgba_component(clr[1]), get_rgba_component(clr[2]),
-                		get_rgba_component(clr[3]) if len(clr) == 4 else alpha)
+                		get_rgba_component(clr[3]) if len(clr) == 4 and format != 'gif' else (alpha if format != 'gif' else 1.0))
                 
                 if format in ('json', 'jsonp'):
                     # We're returning a "UTF-8 Grid" indicating which feature is at
@@ -354,14 +363,15 @@ def map_tile(request, layer_slug, boundary_slug, tile_zoom, tile_x, tile_y, form
             ctx.move_to(pt[0]-x_off-tw/2,pt[1])
             ctx.show_text(txt)
                 
-    if format == "png":
+    if format in ("png", "gif"):
         # Convert the image buffer to raw bytes.
         buf = StringIO()
         im.write_to_png(buf)
         v = buf.getvalue()
+        if format == "gif": v = convert_png_to_gif(v)
         
         # Form the response.
-        r = HttpResponse(v, content_type='image/png')
+        r = HttpResponse(v, content_type='image/' + format)
         r["Content-Length"] = len(v)
     
     elif format == "svg":
@@ -417,4 +427,14 @@ def map_tile(request, layer_slug, boundary_slug, tile_zoom, tile_x, tile_y, form
     
     return r
 
-
+def convert_png_to_gif(pngdata):
+	# Convert PNG byte data (passed as a str) to a transparent GIF.
+	im = PIL.Image.open(StringIO(pngdata))
+	im = im.convert("RGBA") # make sure
+	alpha = im.split()[3]
+	im = im.convert('RGB').convert('P', palette=PIL.Image.ADAPTIVE, colors=255) # reserve 1 color index for transparency
+	mask = PIL.Image.eval(alpha, lambda a: 255 if a <=128 else 0) # map transparent regions (a<=128) to a mask.
+	im.paste(255, mask) # set transparency color index on transparent parts
+	ret = StringIO()
+	im.save(ret, 'gif', transparency=255)
+	return ret.getvalue()
