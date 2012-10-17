@@ -225,6 +225,15 @@ def map_tile(request, layer_slug, boundary_slug, tile_zoom, tile_x, tile_y, form
             for ring in polygon: # should just be one since no shape should have holes?
                 color = bdry["style"].color
                 
+                def get_rgba_component(c):
+                	return c if isinstance(c, float) else c/255.0
+                def get_rgba_tuple(clr, alpha=.25):
+                	# Colors are specified as tuples/lists with 3 (RGB) or 4 (RGBA)
+                	# components. Components that are float values must be in the
+                	# range 0-1, while all other values are in the range 0-255.
+                	return (get_rgba_component(clr[0]), get_rgba_component(clr[1]), get_rgba_component(clr[2]),
+                		get_rgba_component(clr[3]) if len(clr) == 4 else alpha)
+                
                 if format in ('json', 'jsonp'):
                     # We're returning a "UTF-8 Grid" indicating which feature is at
                     # each pixel location on the grid. In order to compute the grid,
@@ -233,28 +242,18 @@ def map_tile(request, layer_slug, boundary_slug, tile_zoom, tile_x, tile_y, form
                     ctx.set_source_rgb(*[ (((i+1)/(256**exp)) % 256)/255.0 for exp in xrange(3) ])
                 
                 elif isinstance(color, (tuple, list)):
-                    # Specify a 3-tuple (or list) for a solid RGB color w/ default
-                    # alpha. RGB are in the range 0-255.
-                    if len(color) == 3:
-                        ctx.set_source_rgba(*[f/255.0 for f in (color + [60])])
-                        
-                    # Specify a 4-tuple (or list) for a solid RGB color with alpha
-                    # specified as the fourth component. Values in range 0-255.
-                    elif len(color) == 4:
-                        ctx.set_source_rgba(*[f/255.0 for f in color])
-                        
-                    else:
-                        continue # Invalid length.
+                    # Specify a 3/4-tuple (or list) for a solid color.
+                    ctx.set_source_rgba(*get_rgba_tuple(color))
                         
                 elif isinstance(color, dict):
                     # Specify a dict of the form { "color1": (R,G,B), "color2": (R,G,B) } to
                     # create a solid fill of color1 plus smaller stripes of color2.
                     pat = cairo.LinearGradient(0.0, 0.0, size, size)
                     for x in xrange(0,size, 32): # divisor of the size so gradient ends at the end
-                        pat.add_color_stop_rgba(*([float(x)/size] + [f/255.0 for f in color["color1"]] + [.3]))
-                        pat.add_color_stop_rgba(*([float(x+28)/size] + [f/255.0 for f in color["color1"]] + [.3]))
-                        pat.add_color_stop_rgba(*([float(x+28)/size] + [f/255.0 for f in color["color2"]] + [.4]))
-                        pat.add_color_stop_rgba(*([float(x+32)/size] + [f/255.0 for f in color["color2"]] + [.4]))
+                        pat.add_color_stop_rgba(*([float(x)/size] + list(get_rgba_tuple(color["color1"], alpha=.3))))
+                        pat.add_color_stop_rgba(*([float(x+28)/size] + list(get_rgba_tuple(color["color1"], alpha=.3))))
+                        pat.add_color_stop_rgba(*([float(x+28)/size] + list(get_rgba_tuple(color["color2"], alpha=.4))))
+                        pat.add_color_stop_rgba(*([float(x+32)/size] + list(get_rgba_tuple(color["color2"], alpha=.4))))
                     ctx.set_source(pat)
                 else:
                     continue # Unknown color data structure.

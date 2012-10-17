@@ -49,7 +49,7 @@ class MapLayerBoundary(models.Model):
     boundary = models.ForeignKey(Boundary, db_index=True)
     
     color = JSONField(blank=True, null=True,
-        help_text='The color to draw this boundary, a (R,G,B) tuple where the values range from 0 to 255, or extended style information as a dict.')
+        help_text='The color to draw this boundary, a (R,G,B) tuple where the values are ints ranging from 0 to 255 or floats ranging from 0 to 1, or extended style information as a dict.')
     label_point = models.PointField(
         blank=True, null=True,
         help_text='The location to label this boundary in EPSG:4326 projection, overriding the label_point set on the Boundary itself.')
