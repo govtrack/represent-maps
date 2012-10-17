@@ -18,7 +18,7 @@ function map_hit_test(coord, layer, boundary, callback, api_root) {
 	
 	var format = (!api_root ? 'json' : 'jsonp');
 	$.ajax(
-		api_root + "/map/tiles/" + layer + (boundary ? "/" + boundary : "") + "/" + coord.zoom + "/" + coord.tile_x + "/" + coord.tile_y + "." + format,
+		(api_root ? api_root : "") + "/map/tiles/" + layer + (boundary ? "/" + boundary : "") + "/" + coord.zoom + "/" + coord.tile_x + "/" + coord.tile_y + "." + format,
 		{
 			dataType: format,
 			cache: true,
