@@ -52,6 +52,12 @@
 				};
 			map = new google.maps.Map(document.getElementById("map_canvas_google"), myOptions);
 			
+			{% if boundaryset.extent %}
+			map.fitBounds(new google.maps.LatLngBounds(
+				new google.maps.LatLng({{boundaryset.extent.1}}, {{boundaryset.extent.0}}),
+				new google.maps.LatLng({{boundaryset.extent.3}}, {{boundaryset.extent.2}})));
+			{% endif %}
+			
 			// Add a tile overlay for this layer.
 			var tileimgformat = 'png';
 			if (navigator.appName == 'Microsoft Internet Explorer' && new RegExp("MSIE [678]").exec(navigator.userAgent)) tileimgformat = 'gif';
