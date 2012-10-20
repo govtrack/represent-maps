@@ -23,20 +23,36 @@ class Command(BaseCommand):
     )
 
     def handle(self, *args, **options):
-        if len(args) == 0 or len(args) > 2:
-            print "Usage: manage.py create-layer boundarysetslug [maplayerslug]"
+        if len(args) == 0 or len(args) > 3:
+            print "Usage: manage.py create-layer boundarysetslug [maplayerslug [colorfunc]]"
             return
         
         bs = args[0]
         ml = bs
-        if len(args) == 2:
-            ml = args[1]
+        colorfunc = None
+        if len(args) >= 2: ml = args[1]
+        if len(args) >= 3: colorfunc = args[2]
         
         bsqs = BoundarySet.objects.filter(slug=bs)
         if len(bsqs) == 0:
             print "No BoundarySet with that slug."
             return
         bs = bsqs[0]
+        
+        if colorfunc:
+            if options["color"]:
+                print "Cannot specify both -c and a colorfunc."
+                return
+            if not "." in colorfunc:
+                print "colorfunc must be a Django-style module.method name."
+                return
+            module, method = colorfunc.rsplit(".", 1)
+            __import__(module)
+            module = sys.modules[module]
+            if not hasattr(module, method):
+                print "method %s not found in module %s." % (method, module)
+                return
+            colorfunc = getattr(module, method)
         
         MapLayer.objects.filter(slug=ml).delete()
         
@@ -48,10 +64,12 @@ class Command(BaseCommand):
         
         # Don't fetch actual instances because they are large and plentiful
         # and we don't want to load them in memory.
-        for bdry in bs.boundaries.values_list('id', flat=True):
-            mlb = MapLayerBoundary.objects.create(
-                maplayer=ml,
-                boundary_id=bdry)
+        #for bdry in bs.boundaries.values_list('id', flat=True):
+        for bdry in bs.boundaries.only("slug", "external_id", "metadata").iterator():
+            create_args = { "maplayer": ml, "boundary": bdry } # was _id
+            if colorfunc:
+                create_args["color"] = colorfunc(bdry)
+            mlb = MapLayerBoundary.objects.create(**create_args)
 
         if options["color"]:
             self.assign_colors(ml)
