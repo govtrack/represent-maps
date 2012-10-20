@@ -68,7 +68,7 @@ class Command(BaseCommand):
         for bdry in bs.boundaries.only("slug", "external_id", "metadata").iterator():
             create_args = { "maplayer": ml, "boundary": bdry } # was _id
             if colorfunc:
-                create_args["color"] = colorfunc(bdry)
+                create_args["color"] = colorfunc(bdry, ml)
             mlb = MapLayerBoundary.objects.create(**create_args)
 
         if options["color"]:

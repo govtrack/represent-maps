@@ -58,8 +58,15 @@ def get_srs(srs):
     
     return db_srs, out_srs
         
-        
-@cache_control(public=True, max_age=maps_settings.MAP_TILE_CACHE_SECONDS)
+def hot_cache_control(f):
+	def g(request, *args, **kwargs):
+		if "nocache" not in request.GET:
+			return cache_control(public=True, max_age=maps_settings.MAP_TILE_CACHE_SECONDS)(f)(request, *args, **kwargs)
+		else:
+			return cache_control(private=True, no_cache=True, must_revalidate=True)(f)(request, *args, **kwargs)
+	return g
+
+@hot_cache_control
 def map_tile(request, layer_slug, boundary_slug, tile_zoom, tile_x, tile_y, format):
     if not has_imaging_library: raise Http404("Cairo is not available.")
     
@@ -178,7 +185,19 @@ def map_tile(request, layer_slug, boundary_slug, tile_zoom, tile_x, tile_y, form
         # info by first creating an actual image, with colors coded by index to
         # represent which boundary covers which pixels.
         im = cairo.ImageSurface(cairo.FORMAT_RGB24, size, size)
-        
+
+	# Color helpers.
+    def get_rgba_component(c):
+        return c if isinstance(c, float) else c/255.0
+    def get_rgba_tuple(clr, alpha=.25):
+        # Colors are specified as tuples/lists with 3 (RGB) or 4 (RGBA)
+        # components. Components that are float values must be in the
+        # range 0-1, while all other values are in the range 0-255.
+        # Because .gif does not support partial transparency, alpha values
+        # are forced to 1.
+        return (get_rgba_component(clr[0]), get_rgba_component(clr[1]), get_rgba_component(clr[2]),
+            get_rgba_component(clr[3]) if len(clr) == 4 and format != 'gif' else (alpha if format != 'gif' else 1.0))
+
     # Create the drawing surface.
     ctx = cairo.Context(im)
     ctx.select_font_face(maps_settings.MAP_LABEL_FONT, cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
@@ -232,17 +251,6 @@ def map_tile(request, layer_slug, boundary_slug, tile_zoom, tile_x, tile_y, form
             for ring in polygon: # should just be one since no shape should have holes?
                 color = bdry["style"].color
                 
-                def get_rgba_component(c):
-                	return c if isinstance(c, float) else c/255.0
-                def get_rgba_tuple(clr, alpha=.25):
-                	# Colors are specified as tuples/lists with 3 (RGB) or 4 (RGBA)
-                	# components. Components that are float values must be in the
-                	# range 0-1, while all other values are in the range 0-255.
-                	# Because .gif does not support partial transparency, alpha values
-                	# are forced to 1.
-                	return (get_rgba_component(clr[0]), get_rgba_component(clr[1]), get_rgba_component(clr[2]),
-                		get_rgba_component(clr[3]) if len(clr) == 4 and format != 'gif' else (alpha if format != 'gif' else 1.0))
-                
                 if format in ('json', 'jsonp'):
                     # We're returning a "UTF-8 Grid" indicating which feature is at
                     # each pixel location on the grid. In order to compute the grid,
@@ -257,13 +265,18 @@ def map_tile(request, layer_slug, boundary_slug, tile_zoom, tile_x, tile_y, form
                 elif isinstance(color, dict):
                     # Specify a dict of the form { "color1": (R,G,B), "color2": (R,G,B) } to
                     # create a solid fill of color1 plus smaller stripes of color2.
-                    pat = cairo.LinearGradient(0.0, 0.0, size, size)
-                    for x in xrange(0,size, 32): # divisor of the size so gradient ends at the end
-                        pat.add_color_stop_rgba(*([float(x)/size] + list(get_rgba_tuple(color["color1"], alpha=.3))))
-                        pat.add_color_stop_rgba(*([float(x+28)/size] + list(get_rgba_tuple(color["color1"], alpha=.3))))
-                        pat.add_color_stop_rgba(*([float(x+28)/size] + list(get_rgba_tuple(color["color2"], alpha=.4))))
-                        pat.add_color_stop_rgba(*([float(x+32)/size] + list(get_rgba_tuple(color["color2"], alpha=.4))))
-                    ctx.set_source(pat)
+                    if color.get("color", None) != None:
+                        ctx.set_source_rgba(*get_rgba_tuple(color["color"]))
+                    elif color.get("color1", None) != None and color.get("color2", None) != None:
+                        pat = cairo.LinearGradient(0.0, 0.0, size, size)
+                        for x in xrange(0,size, 32): # divisor of the size so gradient ends at the end
+                            pat.add_color_stop_rgba(*([float(x)/size] + list(get_rgba_tuple(color["color1"], alpha=.3))))
+                            pat.add_color_stop_rgba(*([float(x+28)/size] + list(get_rgba_tuple(color["color1"], alpha=.3))))
+                            pat.add_color_stop_rgba(*([float(x+28)/size] + list(get_rgba_tuple(color["color2"], alpha=.4))))
+                            pat.add_color_stop_rgba(*([float(x+32)/size] + list(get_rgba_tuple(color["color2"], alpha=.4))))
+                        ctx.set_source(pat)
+                    else:
+                        continue # skip fill
                 else:
                     continue # Unknown color data structure.
                 ctx.new_path()
@@ -275,22 +288,34 @@ def map_tile(request, layer_slug, boundary_slug, tile_zoom, tile_x, tile_y, form
     for i, bdry, shape, ext_dim in draw_shapes:
         if format in ('json', 'jsonp'): continue
         if ext_dim < pixel_width * 3: continue # skip outlines if too small
+        color = bdry["style"].color
         for polygon in shape:
             for ring in polygon: # should just be one since no shape should have holes?
                 ctx.new_path()
                 for pt in ring.coords:
                     ctx.line_to(*viewport(pt))
-                if ext_dim < pixel_width * 60:
-                    ctx.set_line_width(1)
+                    
+                if not isinstance(color, dict) or not "border" in color or not "width" in color["border"]:
+                    if ext_dim < pixel_width * 60:
+                        ctx.set_line_width(1)
+                    else:
+                        ctx.set_line_width(2.5)
                 else:
-                    ctx.set_line_width(2.5)
-                ctx.set_source_rgba(.3,.3,.3, .75)  # grey, semi-transparent
+                    ctx.set_line_width(color["border"]["width"])
+                    
+                if not isinstance(color, dict) or not "border" in color or not "color" in color["border"]:
+                    ctx.set_source_rgba(.3,.3,.3, .75)  # grey, semi-transparent
+                else:
+                    ctx.set_source_rgba(*get_rgba_tuple(color["border"]["color"], alpha=.75))
                 ctx.stroke_preserve()
                 
     # Draw labels.
     for i, bdry, shape, ext_dim in draw_shapes:
         if format in ('json', 'jsonp'): continue
         if ext_dim < pixel_width * 20: continue
+        
+        color = bdry["style"].color
+        if isinstance(color, dict) and "label" in color and color["label"] == None: continue
         
         # Get the location of the label stored in the database, or fall back to
         # GDAL routine point_on_surface to get a point quickly.
@@ -438,3 +463,4 @@ def convert_png_to_gif(pngdata):
 	ret = StringIO()
 	im.save(ret, 'gif', transparency=255)
 	return ret.getvalue()
+

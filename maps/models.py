@@ -19,7 +19,7 @@ class MapLayer(models.Model):
     
     boundaryset = models.ForeignKey(BoundarySet, db_index=True)
     
-    slug = models.SlugField(max_length=200)
+    slug = models.SlugField(max_length=200, db_index=True)
 
     name = models.CharField(max_length=100,
         help_text='A description of the map layer.')
