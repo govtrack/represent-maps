@@ -68,7 +68,7 @@
 			  	  // the tileSize is set to 512 below, the size is passed to the server, and since the
 			  	  // size is double what Google will be using for its own tiles, we pass a one-lower zoom
 			  	  // level to our tile server.
-				  return "/map/tiles/{{layer.slug|escapejs}}{% if boundary %}/{{boundary.slug|escapejs}}{% endif %}/" + (zoom-1) + "/" + coord.x + "/" + coord.y + "." + tileimgformat + "?size=512&generation={{request.GET.gen|urlencode}}";
+				  return "/map/tiles/{{layer.slug|escapejs}}{% if boundary %}/{{boundary.slug|escapejs}}{% endif %}/" + (zoom-1) + "/" + coord.x + "/" + coord.y + "." + tileimgformat + "?size=512{% if request.GET.gen %}&gen={{request.GET.gen|urlencode}}{% endif %}{% if request.GET.nocache %}&nocache=1{% endif %}";
 			  },
 			  tileSize: new google.maps.Size(512, 512),
 			  isPng: tileimgformat == 'png',
@@ -143,7 +143,7 @@
 			
 			var overlay = new OpenLayers.Layer.XYZ(
 				"{{layer.name|escapejs}}", 
-				[ "/map/tiles/{{layer.slug|escapejs}}{% if boundary %}/{{boundary.slug|escapejs}}{% endif %}/${z}/${x}/${y}.png?srs=2163&radius=70" ],
+				[ "/map/tiles/{{layer.slug|escapejs}}{% if boundary %}/{{boundary.slug|escapejs}}{% endif %}/${z}/${x}/${y}.png?{% if request.GET.gen %}&gen={{request.GET.gen|urlencode}}{% endif %}{% if request.GET.nocache %}&nocache=1{% endif %}" ],
 				{
 					attribution: "{{layer.authority}}",
 					sphericalMercator: true,
@@ -153,8 +153,13 @@
 			
 			var fromProjection = new OpenLayers.Projection("EPSG:4326");   // Transform from WGS 1984
 			var toProjection   = new OpenLayers.Projection("EPSG:900913"); // to Spherical Mercator Projection
+
+			{% if boundaryset.extent %}
+			map.zoomToExtent(new OpenLayers.Bounds({{boundaryset.extent}}).transform( fromProjection, toProjection));
+			{% else %}
 			var position       = new OpenLayers.LonLat(-96, 38).transform( fromProjection, toProjection);
 			map.setCenter(position, 4);
+			{% endif %}
 
 			{% if boundary %}
 			$.ajax("/boundaries/{{boundaryset.slug|escapejs}}/{{boundary.slug|escapejs}}",
