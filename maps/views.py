@@ -23,8 +23,15 @@ def map_demo_page(request, layer_slug, boundary_slug):
     ml = get_object_or_404(MapLayer, slug=layer_slug)
     bs = ml.boundaryset
     bb = get_object_or_404(Boundary, set=bs, slug=boundary_slug) if boundary_slug else None
+    doc_boundary = bb
+    if not doc_boundary:
+        from random import choice
+        doc_boundary = bs.boundaries.all()[ choice(xrange(bs.boundaries.count())) ]
+    def build_docs(model):
+        return [ (field, model._meta.get_field(model.api_fields_doc_from.get(field, field))) for field in model.api_fields ]
     return render_to_response('maps/map_test.html',
-      { "layer": ml, "boundaryset": bs, "boundary": bb },
+      { "layer": ml, "boundaryset": bs, "boundary": bb, "doc_boundary": doc_boundary,
+         "models": { "BoundarySet": build_docs(BoundarySet), "Boundary": build_docs(Boundary) } },
       context_instance=RequestContext(request))
 
 def get_srs(srs):

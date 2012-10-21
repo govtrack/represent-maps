@@ -3,9 +3,34 @@
 	<title>Map Test Page</title>
 	<meta name="viewport" content="initial-scale=1.0, user-scalable=no">
 	<style>
-		body { margin: 0; padding: 0; font-family: sans-serif; }
+		body { margin: 0; padding: 0; font-family: sans-serif; background-color: #F0F0F0; }
 		h1 { margin: .5em; text-align: center; }
 		.map { border: 1px solid black; }
+		#click, #mousemove { font-weight: bold; font-size: 120%; }
+		
+		dl.api_points {
+			margin-left: 2em;
+			font-size: 95%;
+		}
+		dl.api_points dt a {
+			font-family: mono;
+		}
+		dl.api_points dd {
+			margin: .25em 0 1em 0;
+		}
+		
+		table.api_fields {
+			margin-left: 2em;
+		}
+		table.api_fields th, table.api_fields td {
+			font-size: 95%;
+			text-align: left;
+		}
+		
+		#about_layer p {
+			font-size: 95%;
+			margin: 0 0 .5em 2em;
+		}
 	</style>
 
 	<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.2/jquery.min.js"> </script>
@@ -104,7 +129,7 @@
 					"{{layer.slug|escapejs}}",
 					{% if boundary %}"{{boundary.slug|escapejs}}"{% else %}null{% endif %},
 					function(key, data) {
-						if (data) $('#moousemove').text(data.name);
+						if (data) $('#mousemove').text("[" + data.name + "]");
 						
 						// Highlight the region by adding a new overlay layer with just
 						// that boundary shown in the layer. Doubling it up just makes
@@ -207,15 +232,15 @@
 		
 		/*** COMMON FUNCTIONS ***/
 		function onclick(lat, lng) {
-			$('#click').text('You clicked on [Loading...].');
+			$('#click').text('[Loading...]');
 			$.ajax(
 				"/boundaries/{{boundaryset.slug|escapejs}}/?contains=" + lat + "," + lng,
 				{
 					success: function(res) {
 						if (res.objects.length > 0) {
-							$('#click').text('You clicked on ' + res.objects[0].external_id + '.');
+							$('#click').text('[' + res.objects[0].external_id + ']');
 						} else {
-							$('#click').text('You clicked on an empty spot.');
+							$('#click').text('[You clicked on an empty spot.]');
 						}
 					}
 				}
@@ -226,21 +251,43 @@
 <body onload="initialize()">
 	<h1>{{layer.name}}</h1>
 	
+	<p style="text-align: center; margin: 1em 5em 1em 5em">Data from <a href="{{boundaryset.source_url}}">{{boundaryset.authority}}</a>.</p>
+	<p style="text-align: center; margin: 1em 5em 2em 5em">Map and API infrastructure based on <a href="https://github.com/tauberer/represent-boundaries">represent-boundaries</a> (originally by Chicago Tribune/OpenNorth) and <a href="https://github.com/tauberer/represent-maps">represent-maps</a>.</p>
+	
 	<div style="float: left; width: 50%;">
 		<div style="padding: 1em">
 			<h2>Map Test Page</h2>
-			<p>This page demonstrates how to display colorful map layers using either Google Maps API v3 or OpenLayers with Open Street Map.</p>
-			<p><a href="#" onclick="$('.map').toggle(); initialize(); return false;">Toggle Google/OSM</a></p>
-			<p id="click">Click on the map to see what&rsquo;s there.</p>
-			<p id="moousemove">Hover over the map to see what&rsquo;s there (Google Maps only).</p>
+			<p>This page demonstrates how to display colorful map layers using either Google Maps API v3 or OpenLayers with Open Street Map [<a href="#" onclick="$('.map').toggle(); initialize(); return false;">Toggle Google/OSM</a>]. View the source to see how it&rsquo;s done.</p>
+			<p>Click on the map <span id="click"> </span> or hover over the map (Google Maps only) <span id="mousemove"> </span>  to see what&rsquo;s there.</p>
+			
+			{% if not boundary %}
+				<p>Maps can also be made for individual boundaries, such as <a href="/map/demo/{{layer.slug|urlencode}}/{{doc_boundary.slug|urlencode}}">this map for {{doc_boundary.name}}</a>.<p>
+			{% else %}
+				<p>View the demo map page for the <a href="/map/demo/{{layer.slug|urlencode}}">entire layer</a>.<p>
+			{% endif %}
 			
 			<h2>About This Layer</h2>
-			<p>Authority: {{layer.authority}} / {{boundaryset.authority}}</p>
-			<p>Domain: {{boundaryset.domain}}</p>
+			<p>Metadata stored with this layer:</p>
+			<div id="about_layer">
+			{% if boundaryset.authority %}<p>Authority: {% if layer.authority %}{{layer.authority}} / {% endif %}{{boundaryset.authority}}</p>{% endif %}
+			{% if boundaryset.domain %}<p>Domain: {{boundaryset.domain}}</p>{% endif %}
 			<p>Last Updated: {{layer.last_updated}} (layer) / {{boundaryset.last_updated}} (geography)</p>
-			<p>Source URL: {{layer.source_url}} / {{boundaryset.source_url}}</p>
-			<p>Notes: {{layer.notes}} / {{boundaryset.notes}}</p>
-			<p>License URL: {{layer.licence_url}} / {{boundaryset.licence_url}}</p>
+			{% if boundaryset.source_url %}<p>Source URL: {% if layer.source_url %}{{layer.source_url}} /  {% endif %}{{boundaryset.source_url}}</p>{% endif %}
+			{% if boundaryset.notes or layer.notes %}<p>Notes: {% if layer.notes %}{{layer.notes}} /  {% endif %}{{boundaryset.notes}}</p>{% endif %}
+			{% if boundaryset.license_url or layer.license_url %}<p>License URL: {% if layer.license_url %}{{layer.licence_url}} /  {% endif %}{{boundaryset.licence_url}}</p>{% endif %}
+			</div>
+			
+			<h2>Using the API</h2>
+		
+			<p>The geospatial information here is modeled in BoundarySets, Boundaries, MapLayers, and MapLayerBoundaries. You are looking at the page for the MapLayer named <tt>{{layer.slug}}</tt>, which is based on the BoundarySet named <tt>{{boundaryset.slug}}</tt>.</p>
+			
+			{% with doc_boundary as boundary %} 
+				{% include "boundaries/apidoc.html" %}
+			{% endwith %}
+			
+			<h3>MapLayer/MapLayerBoundary</h3>
+			
+			<p>There is no API for MapLayers and MapLayerBoundaries at this time.</p>
 		</div>
 	</div>
 	
