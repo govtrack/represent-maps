@@ -1,10 +1,12 @@
 <html>
 <head>
-	<title>Map Test Page</title>
+	<title>Map/GIS API Demo Page - {{boundaryset.name}}</title>
 	<meta name="viewport" content="initial-scale=1.0, user-scalable=no">
 	<style>
-		body { margin: 0; padding: 0; font-family: sans-serif; background-color: #F0F0F0; }
+		body { margin: 0; padding: 0; font-family: sans-serif; background-color: #F3F3F3; }
 		h1 { margin: .5em; text-align: center; }
+		h2 { font-size: 1.25em; }
+		h3 { font-size: 1.1em; }
 		.map { border: 1px solid black; }
 		#click, #mousemove { font-weight: bold; font-size: 120%; }
 		
@@ -256,18 +258,9 @@
 	
 	<div style="float: left; width: 50%;">
 		<div style="padding: 1em">
-			<h2>Map Test Page</h2>
-			<p>This page demonstrates how to display colorful map layers using either Google Maps API v3 or OpenLayers with Open Street Map [<a href="#" onclick="$('.map').toggle(); initialize(); return false;">Toggle Google/OSM</a>]. View the source to see how it&rsquo;s done.</p>
-			<p>Click on the map <span id="click"> </span> or hover over the map (Google Maps only) <span id="mousemove"> </span>  to see what&rsquo;s there.</p>
-			
-			{% if not boundary %}
-				<p>Maps can also be made for individual boundaries, such as <a href="/map/demo/{{layer.slug|urlencode}}/{{doc_boundary.slug|urlencode}}">this map for {{doc_boundary.name}}</a>.<p>
-			{% else %}
-				<p>View the demo map page for the <a href="/map/demo/{{layer.slug|urlencode}}">entire layer</a>.<p>
-			{% endif %}
-			
-			<h2>About This Layer</h2>
-			<p>Metadata stored with this layer:</p>
+			<p>This page demonstrates how to access the GIS <b>API</b> and how to display colorful <b>map layers</b> for the {{boundaryset.name}} data hosted here.</p>
+
+			<p>Here is the metadata stored with this layer:</p>
 			<div id="about_layer">
 			{% if boundaryset.authority %}<p>Authority: {% if layer.authority %}{{layer.authority}} / {% endif %}{{boundaryset.authority}}</p>{% endif %}
 			{% if boundaryset.domain %}<p>Domain: {{boundaryset.domain}}</p>{% endif %}
@@ -276,6 +269,16 @@
 			{% if boundaryset.notes or layer.notes %}<p>Notes: {% if layer.notes %}{{layer.notes}} /  {% endif %}{{boundaryset.notes}}</p>{% endif %}
 			{% if boundaryset.license_url or layer.license_url %}<p>License URL: {% if layer.license_url %}{{layer.licence_url}} /  {% endif %}{{boundaryset.licence_url}}</p>{% endif %}
 			</div>
+			
+			<h2>Creating Maps</h2>
+			<p>This is a demo page for using either Google Maps API v3 or OpenLayers with Open Street Map [<a href="#" onclick="$('.map').toggle(); initialize(); return false;">Toggle Google/OSM</a>]. View the source to see how it&rsquo;s done.</p>
+			<p>Click on the map <span id="click"> </span> or hover over the map (Google Maps only) <span id="mousemove"> </span>  to see what&rsquo;s there.</p>
+			
+			{% if not boundary %}
+				<p>Maps can also be made for individual boundaries, such as <a href="/map/demo/{{layer.slug|urlencode}}/{{doc_boundary.slug|urlencode}}">this map for {{doc_boundary.name}}</a>.<p>
+			{% else %}
+				<p>View the demo map page for the <a href="/map/demo/{{layer.slug|urlencode}}">entire layer</a>.<p>
+			{% endif %}
 			
 			<h2>Using the API</h2>
 		
