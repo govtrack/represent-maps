@@ -87,6 +87,7 @@ def map_tile(request, layer_slug, boundary_slug, tile_zoom, tile_x, tile_y, form
         srs = int(request.GET.get('srs', '3857'))
     except ValueError:
         raise Http404("Invalid parameter.")
+    features = set(f for f in request.GET.get('features', '').split(',') if f.strip() != '')
         
     db_srs, out_srs = get_srs(srs)
     
@@ -251,8 +252,12 @@ def map_tile(request, layer_slug, boundary_slug, tile_zoom, tile_x, tile_y, form
         
         draw_shapes.append( (len(draw_shapes), bdry, shape, ext_dim) )
         
+    def apply_feature(f):
+        return len(features) == 0 or f in features
+        
     # Draw shading, for each linear ring of each polygon in the multipolygon.
     for i, bdry, shape, ext_dim in draw_shapes:
+        if not apply_feature('fill'): continue
         if not bdry["style"].color and format not in ('json', 'jsonp'): continue
         for polygon in shape:
             for ring in polygon: # should just be one since no shape should have holes?
@@ -293,6 +298,7 @@ def map_tile(request, layer_slug, boundary_slug, tile_zoom, tile_x, tile_y, form
                 
     # Draw outlines, for each linear ring of each polygon in the multipolygon.
     for i, bdry, shape, ext_dim in draw_shapes:
+        if not apply_feature('outline'): continue
         if format in ('json', 'jsonp'): continue
         if ext_dim < pixel_width * 3: continue # skip outlines if too small
         color = bdry["style"].color
@@ -318,6 +324,7 @@ def map_tile(request, layer_slug, boundary_slug, tile_zoom, tile_x, tile_y, form
                 
     # Draw labels.
     for i, bdry, shape, ext_dim in draw_shapes:
+        if not apply_feature('label'): continue
         if format in ('json', 'jsonp'): continue
         if ext_dim < pixel_width * 20: continue
         
