@@ -132,22 +132,6 @@
 					{% if boundary %}"{{boundary.slug|escapejs}}"{% else %}null{% endif %},
 					function(key, data) {
 						if (data) $('#mousemove').text("[" + data.name + "]");
-						
-						// Highlight the region by adding a new overlay layer with just
-						// that boundary shown in the layer. Doubling it up just makes
-						// the colors pop more.
-						var h = map.overlayMapTypes.getAt(map.overlayMapTypes.length-1).is_highlight;
-						if (h && (!data || h != key)) map.overlayMapTypes.pop();
-						if (!data || h == key) return;
-						var overlay = new google.maps.ImageMapType({
-						  getTileUrl: function(coord, zoom) {
-							  return "/map/tiles/{{layer.slug|escapejs}}/" + key + "/" + zoom + "/" + coord.x + "/" + coord.y + ".png?size=256";	
-						  },
-						  tileSize: new google.maps.Size(256, 256),
-						  isPng: true
-						});
-						overlay.is_highlight = key;
-						map.overlayMapTypes.insertAt(1, overlay);
 					}
 					);
 			});
