@@ -108,7 +108,7 @@
 			map.overlayMapTypes.insertAt(0, overlay);
 
 			{% if boundary %}
-			$.ajax("/boundaries/{{boundaryset.slug|escapejs}}/{{boundary.slug|escapejs}}",
+			$.ajax("/boundaries/{{boundaryset.slug|escapejs}}/{{boundary.slug|escapejs}}?{% if request.GET.gen %}&gen={{request.GET.gen|urlencode}}{% endif %}{% if request.GET.nocache %}&nocache=1{% endif %}",
 				{
 					success: function(res) {
 						if (res && res.extent) {
