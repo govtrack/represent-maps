@@ -11,12 +11,24 @@ from django.shortcuts import render_to_response, get_object_or_404
 from django.template import RequestContext
 from django.views.decorators.cache import cache_control
 import math, json
+
 try:
-    import cairo, PIL.Image
-    from StringIO import StringIO
+    import PIL.Image
     has_imaging_library = True
 except ImportError:
     has_imaging_library = False
+
+try:
+    import cairo
+    has_imaging_library = True
+except ImportError:
+    try:
+        import cairocffi as cairo
+        has_imaging_library = True
+    except ImportError:
+        has_imaging_library = False
+
+from StringIO import StringIO
 
 def map_demo_page(request, layer_slug, boundary_slug):
     if not has_imaging_library: raise Http404("Cairo is not available.")
