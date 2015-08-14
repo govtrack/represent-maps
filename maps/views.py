@@ -41,7 +41,9 @@ def get_srs(srs):
     SpatialRefSys = connections['default'].ops.spatial_ref_sys()
     out_srs = SpatialRefSys.objects.get(srid=srs).srs
     
-    if srs == 3857:
+    if srs == 3857 and False:
+        # This problem appears to be fixed in PostGIS 2.1.
+        #
         # When converting to EPSG:3857, the Google 'web mercator' projection,
         # the transformation does not work right when the database is set to
         # WGS84 (EPSG:4326).
