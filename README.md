@@ -17,6 +17,10 @@ The map tiles are not cached within the app. That's your responsibility.
 Besides the dependencies for represent-boundaries, you'll need pycairo2. It's available in Ubuntu 12.04. Your mileage may vary in other cases:
 
     apt-get install python-cairo # (there's no PIP for Python 2?)
+
+Or you can use cairocffi as a replace for pycairo, that installs with pip in a virtualenv, runs on Python 2 and 3, as well as PyPy.
+
+    pip install cairocffi
     
 Add `maps` to INSTALLED_APPS in your settings.py.
 
